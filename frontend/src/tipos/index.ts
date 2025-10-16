@@ -6,6 +6,8 @@ export interface Dataset {
   columnas: number
   fecha_subida: string
   usuario_id: string
+  es_limpio?: boolean
+  dataset_original_id?: string
 }
 
 export interface ColumnaStat {
@@ -80,4 +82,33 @@ export interface CorrelacionMatrix {
 export interface DistribucionClases {
   clase: string
   cantidad: number
+}
+
+export interface EstadisticasLimpieza {
+  filas_originales: number
+  filas_limpias: number
+  filas_eliminadas: number
+  porcentaje_datos_eliminados: number
+  nulos_por_columna: Record<string, number>
+  total_nulos: number
+  duplicados_detectados: number
+  columnas_eliminadas: string[]
+  nulos_eliminados: number
+  duplicados_eliminados: number
+}
+
+export interface EstadisticasDatos {
+  total_filas: number
+  total_columnas: number
+  total_nulos: number
+  total_duplicados: number
+  porcentaje_nulos: number
+}
+
+export interface ResultadoLimpieza {
+  mensaje: string
+  filas_resultantes: number
+  estadisticas: EstadisticasLimpieza
+  dataset_limpio_id: string
+  archivo_url: string
 }

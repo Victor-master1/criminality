@@ -151,14 +151,23 @@ export default function Datasets() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="relative w-14 h-14">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform"></div>
-                    <div className="relative w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${dataset.es_limpio ? 'from-emerald-600 to-teal-600' : 'from-blue-600 to-cyan-600'} rounded-2xl rotate-3 group-hover:rotate-6 transition-transform`}></div>
+                    <div className={`relative w-full h-full bg-gradient-to-br ${dataset.es_limpio ? 'from-emerald-500 to-teal-500' : 'from-blue-500 to-cyan-500'} rounded-2xl flex items-center justify-center shadow-lg`}>
                       <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                        {dataset.es_limpio ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                        )}
                       </svg>
                     </div>
                   </div>
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <div className="flex items-center gap-2">
+                    {dataset.es_limpio && (
+                      <span className="badge badge-success text-xs">Limpio</span>
+                    )}
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  </div>
                 </div>
 
                 <h3 className="text-xl font-bold text-slate-900 mb-4 truncate group-hover:text-primary-600 transition-colors">
@@ -175,6 +184,7 @@ export default function Datasets() {
                     </div>
                     <span className="text-sm font-bold text-slate-900">{dataset.filas.toLocaleString()}</span>
                   </div>
+
                   <div className="flex items-center justify-between py-2.5 px-4 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
                     <div className="flex items-center space-x-2 text-slate-600">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -184,6 +194,7 @@ export default function Datasets() {
                     </div>
                     <span className="text-sm font-bold text-slate-900">{dataset.columnas}</span>
                   </div>
+
                   <div className="flex items-center justify-between py-2.5 px-4 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
                     <div className="flex items-center space-x-2 text-slate-600">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

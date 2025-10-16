@@ -2,21 +2,28 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
-import type { ColumnaStat } from '../tipos'
+import type { ColumnaStat, EstadisticasDatos, EstadisticasLimpieza, ResultadoLimpieza } from '../tipos'
 
 export default function Limpieza() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [columnas, setColumnas] = useState<ColumnaStat[]>([])
   const [vistaPrevia, setVistaPrevia] = useState<any[]>([])
+  const [vistaPreviaFiltrada, setVistaPreviaFiltrada] = useState<any[]>([])
   const [procesando, setProcesando] = useState(false)
   const [correlacion, setCorrelacion] = useState<any>(null)
   const [distribucionClases, setDistribucionClases] = useState<any[]>([])
+  const [estadisticasDatos, setEstadisticasDatos] = useState<EstadisticasDatos | null>(null)
+  const [filtroBusqueda, setFiltroBusqueda] = useState('')
+  const [estadisticasLimpieza, setEstadisticasLimpieza] = useState<EstadisticasLimpieza | null>(null)
+  const [mostrarResultados, setMostrarResultados] = useState(false)
+  const [datasetLimpioId, setDatasetLimpioId] = useState<string | null>(null)
   const [operaciones, setOperaciones] = useState({
     eliminar_nulos: true,
     normalizar: false,
     codificar_categoricas: true,
     detectar_outliers: false,
+    eliminar_duplicados: true,
   })
 
   const COLORES = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
@@ -25,18 +32,35 @@ export default function Limpieza() {
     cargarDatos()
   }, [id])
 
+  useEffect(() => {
+    if (filtroBusqueda.trim() === '') {
+      setVistaPreviaFiltrada(vistaPrevia)
+    } else {
+      const filtrado = vistaPrevia.filter(fila =>
+        Object.values(fila).some(valor =>
+          String(valor).toLowerCase().includes(filtroBusqueda.toLowerCase())
+        )
+      )
+      setVistaPreviaFiltrada(filtrado)
+    }
+  }, [filtroBusqueda, vistaPrevia])
+
   const cargarDatos = async () => {
     try {
-      const [respCol, respPrev, respCorr, respDist] = await Promise.all([
+      const [respCol, respPrev, respCorr, respDist, respEst] = await Promise.all([
         axios.get(`http://localhost:5000/api/datasets/${id}/columnas`),
         axios.get(`http://localhost:5000/api/datasets/${id}/vista-previa`),
         axios.get(`http://localhost:5000/api/datasets/${id}/correlacion`),
-        axios.get(`http://localhost:5000/api/datasets/${id}/distribucion-clases`)
+        axios.get(`http://localhost:5000/api/datasets/${id}/distribucion-clases`),
+        axios.get(`http://localhost:5000/api/datasets/${id}/estadisticas`)
       ])
+
       setColumnas(respCol.data)
       setVistaPrevia(respPrev.data)
+      setVistaPreviaFiltrada(respPrev.data)
       setCorrelacion(respCorr.data)
       setDistribucionClases(respDist.data)
+      setEstadisticasDatos(respEst.data)
     } catch (error) {
       console.error('Error al cargar datos:', error)
     }
@@ -44,13 +68,42 @@ export default function Limpieza() {
 
   const aplicarLimpieza = async () => {
     setProcesando(true)
+    setMostrarResultados(false)
     try {
-      await axios.post(`http://localhost:5000/api/datasets/${id}/limpiar`, operaciones)
-      cargarDatos()
+      const { data } = await axios.post<ResultadoLimpieza>(`http://localhost:5000/api/datasets/${id}/limpiar`, operaciones)
+      setEstadisticasLimpieza(data.estadisticas)
+      setDatasetLimpioId(data.dataset_limpio_id)
+      setMostrarResultados(true)
     } catch (error) {
       console.error('Error al limpiar:', error)
+      alert('Error al aplicar la limpieza')
     } finally {
       setProcesando(false)
+    }
+  }
+
+  const descargarCSV = async () => {
+    if (!datasetLimpioId) return
+    try {
+      const response = await axios.get(`http://localhost:5000/api/datasets/${datasetLimpioId}/descargar`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `dataset_limpio_${Date.now()}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Error al descargar:', error)
+    }
+  }
+
+  const verDatasetLimpio = () => {
+    if (datasetLimpioId) {
+      navigate(`/limpieza/${datasetLimpioId}`)
+      window.location.reload()
     }
   }
 
@@ -80,21 +133,148 @@ export default function Limpieza() {
         </button>
       </div>
 
+      {estadisticasDatos && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-600 uppercase">Total Filas</span>
+              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_filas.toLocaleString()}</p>
+          </div>
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-600 uppercase">Valores Nulos</span>
+              <svg className="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_nulos.toLocaleString()}</p>
+            <p className="text-xs text-slate-500 mt-1">{estadisticasDatos.porcentaje_nulos.toFixed(2)}% del total</p>
+          </div>
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-600 uppercase">Duplicados</span>
+              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_duplicados.toLocaleString()}</p>
+          </div>
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-600 uppercase">Columnas</span>
+              <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 4v16m6-16v16m-9-9h12" />
+              </svg>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_columnas}</p>
+          </div>
+        </div>
+      )}
+
+      {mostrarResultados && estadisticasLimpieza && (
+        <div className="card p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Limpieza Completada</h3>
+                <p className="text-slate-600">Resultados del proceso de limpieza</p>
+              </div>
+            </div>
+            <button onClick={() => setMostrarResultados(false)} className="text-slate-400 hover:text-slate-600">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-xl p-4 border-2 border-emerald-200">
+              <p className="text-sm text-slate-600 font-semibold mb-1">Filas Eliminadas</p>
+              <p className="text-3xl font-bold text-emerald-600">{estadisticasLimpieza.filas_eliminadas}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border-2 border-emerald-200">
+              <p className="text-sm text-slate-600 font-semibold mb-1">Nulos Eliminados</p>
+              <p className="text-3xl font-bold text-blue-600">{estadisticasLimpieza.nulos_eliminados}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border-2 border-emerald-200">
+              <p className="text-sm text-slate-600 font-semibold mb-1">Duplicados Eliminados</p>
+              <p className="text-3xl font-bold text-amber-600">{estadisticasLimpieza.duplicados_eliminados}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border-2 border-emerald-200">
+              <p className="text-sm text-slate-600 font-semibold mb-1">Datos Conservados</p>
+              <p className="text-3xl font-bold text-purple-600">{(100 - estadisticasLimpieza.porcentaje_datos_eliminados).toFixed(1)}%</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button onClick={descargarCSV} className="btn-primary space-x-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Descargar CSV Limpio</span>
+            </button>
+            <button onClick={verDatasetLimpio} className="btn-secondary space-x-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <span>Ver Dataset Limpio</span>
+            </button>
+            <button onClick={() => navigate('/datasets')} className="btn-secondary space-x-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+              <span>Ir a Datasets</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="card p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={filtroBusqueda}
+                  onChange={(e) => setFiltroBusqueda(e.target.value)}
+                  placeholder="Buscar en los datos..."
+                  className="input-field py-2 px-3 text-sm w-64"
+                />
+              </div>
             </div>
-            <div className="overflow-x-auto rounded-xl border-2 border-slate-100">
+
+            {filtroBusqueda && (
+              <div className="mb-4 px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-xl text-sm text-blue-700 font-semibold">
+                Mostrando {vistaPreviaFiltrada.length} de {vistaPrevia.length} filas
+              </div>
+            )}
+
+            <div className="overflow-auto rounded-xl border-2 border-slate-100 max-h-96">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 sticky top-0">
                   <tr>
                     {vistaPrevia[0] && Object.keys(vistaPrevia[0]).map((col) => (
                       <th key={col} className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">
@@ -104,7 +284,7 @@ export default function Limpieza() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {vistaPrevia.slice(0, 10).map((fila, idx) => (
+                  {vistaPreviaFiltrada.map((fila, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       {Object.values(fila).map((valor: any, colIdx) => (
                         <td key={colIdx} className="px-4 py-3 text-slate-600 whitespace-nowrap">
@@ -208,6 +388,7 @@ export default function Limpieza() {
               </div>
               <h2 className="text-2xl font-bold text-slate-900">Estadísticas Detalladas</h2>
             </div>
+
             <div className="space-y-4">
               {columnas.map((col) => (
                 <div key={col.nombre} className="border-2 border-slate-100 rounded-xl p-5 hover:border-primary-200 transition-colors">
@@ -222,6 +403,7 @@ export default function Limpieza() {
                       {col.valores_unicos} únicos
                     </span>
                   </div>
+
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
                       <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -230,6 +412,7 @@ export default function Limpieza() {
                       <span className="text-slate-600">Nulos:</span>
                       <span className="font-semibold text-slate-900">{col.valores_nulos}</span>
                     </div>
+
                     {col.promedio !== undefined && (
                       <>
                         <div className="flex items-center space-x-2">
@@ -273,6 +456,7 @@ export default function Limpieza() {
               </div>
               <h2 className="text-2xl font-bold text-slate-900">Operaciones</h2>
             </div>
+
             <div className="space-y-4">
               <label className="flex items-start space-x-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group">
                 <input
@@ -286,6 +470,20 @@ export default function Limpieza() {
                   <div className="text-sm text-slate-600 mt-1">Remover filas con datos faltantes</div>
                 </div>
               </label>
+
+              <label className="flex items-start space-x-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group">
+                <input
+                  type="checkbox"
+                  checked={operaciones.eliminar_duplicados}
+                  onChange={(e) => setOperaciones({ ...operaciones, eliminar_duplicados: e.target.checked })}
+                  className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500 mt-0.5"
+                />
+                <div className="flex-1">
+                  <div className="font-semibold text-slate-900 group-hover:text-primary-600 transition-colors">Eliminar Duplicados</div>
+                  <div className="text-sm text-slate-600 mt-1">Remover filas duplicadas</div>
+                </div>
+              </label>
+
               <label className="flex items-start space-x-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group">
                 <input
                   type="checkbox"
@@ -298,6 +496,7 @@ export default function Limpieza() {
                   <div className="text-sm text-slate-600 mt-1">Escalar valores numéricos</div>
                 </div>
               </label>
+
               <label className="flex items-start space-x-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group">
                 <input
                   type="checkbox"
@@ -310,6 +509,7 @@ export default function Limpieza() {
                   <div className="text-sm text-slate-600 mt-1">Convertir texto a números</div>
                 </div>
               </label>
+
               <label className="flex items-start space-x-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group">
                 <input
                   type="checkbox"
@@ -323,6 +523,7 @@ export default function Limpieza() {
                 </div>
               </label>
             </div>
+
             <button
               onClick={aplicarLimpieza}
               disabled={procesando}
