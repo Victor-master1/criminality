@@ -1,9 +1,0 @@
-# Ignorar dependencias
-node_modules/
-
-# Ignorar archivos temporales
-.env
-dist/
-build/
-.DS_Store
-*.log
