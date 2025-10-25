@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area } from 'recharts'
 import type { Experimento, MetricasEpoca } from '../tipos'
+import { useVoiceGuideContext } from '../contextos/VoiceGuideContext'
 
 export default function Resultados() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -13,6 +14,8 @@ export default function Resultados() {
   const [vistaActiva, setVistaActiva] = useState<'metricas' | 'comparacion' | 'avanzado'>('metricas')
   const [eliminando, setEliminando] = useState<string | null>(null)
   const [modalEliminar, setModalEliminar] = useState<Experimento | null>(null)
+
+  const { speak } = useVoiceGuideContext()
 
   useEffect(() => {
     if (experimentoId) {
@@ -156,6 +159,13 @@ export default function Resultados() {
     return String(valor)
   }
 
+  const cambiarVista = (v: 'metricas' | 'avanzado' | 'comparacion') => {
+    setVistaActiva(v)
+    if (v === 'metricas') speak('Mostrando métricas del experimento')
+    if (v === 'avanzado') speak('Mostrando opciones avanzadas')
+    if (v === 'comparacion') speak('Mostrando comparación de experimentos')
+  }
+
   return (
     <div className="space-y-8 animate-slide-up">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -165,7 +175,7 @@ export default function Resultados() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setVistaActiva('metricas')}
+            onClick={() => cambiarVista('metricas')}
             className={`px-4 py-2 rounded-xl font-semibold transition-all ${
               vistaActiva === 'metricas'
                 ? 'bg-primary-600 text-white shadow-lg'
@@ -175,7 +185,7 @@ export default function Resultados() {
             Métricas
           </button>
           <button
-            onClick={() => setVistaActiva('avanzado')}
+            onClick={() => cambiarVista('avanzado')}
             className={`px-4 py-2 rounded-xl font-semibold transition-all ${
               vistaActiva === 'avanzado'
                 ? 'bg-primary-600 text-white shadow-lg'
@@ -185,7 +195,7 @@ export default function Resultados() {
             Avanzado
           </button>
           <button
-            onClick={() => setVistaActiva('comparacion')}
+            onClick={() => cambiarVista('comparacion')}
             className={`px-4 py-2 rounded-xl font-semibold transition-all ${
               vistaActiva === 'comparacion'
                 ? 'bg-primary-600 text-white shadow-lg'
@@ -430,7 +440,7 @@ export default function Resultados() {
             <div className="card p-6">
               <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center space-x-2">
                 <svg className="w-7 h-7 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 a 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
                 <span>Radar de Métricas</span>
               </h3>

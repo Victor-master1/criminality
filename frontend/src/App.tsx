@@ -7,6 +7,7 @@ import Limpieza from './paginas/Limpieza'
 import Entrenamiento from './paginas/Entrenamiento'
 import Resultados from './paginas/Resultados'
 import Login from './paginas/Login'
+import { VoiceGuideProvider } from './contextos/VoiceGuideContext'
 
 function App() {
   const { usuario, cargando } = useAuth()
@@ -24,18 +25,20 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/datasets" element={<Datasets />} />
-          <Route path="/limpieza/:id" element={<Limpieza />} />
-          <Route path="/entrenamiento" element={<Entrenamiento />} />
-          <Route path="/resultados" element={<Resultados />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <VoiceGuideProvider>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/datasets" element={<Datasets />} />
+            <Route path="/limpieza/:id" element={<Limpieza />} />
+            <Route path="/entrenamiento" element={<Entrenamiento />} />
+            <Route path="/resultados" element={<Resultados />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </VoiceGuideProvider>
   )
 }
 

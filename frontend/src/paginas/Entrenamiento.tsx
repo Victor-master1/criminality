@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import type { Dataset, ConfiguracionEntrenamiento } from '../tipos'
+import { useVoiceGuideContext } from '../contextos/VoiceGuideContext'
 
 export default function Entrenamiento() {
   const navigate = useNavigate()
@@ -19,6 +20,7 @@ export default function Entrenamiento() {
     tamano_lote: 32,
     validacion_split: 0.2,
   })
+  const { speak } = useVoiceGuideContext()
 
   useEffect(() => {
     cargarDatasets()
@@ -52,7 +54,7 @@ export default function Entrenamiento() {
 
   const iniciarEntrenamiento = async () => {
     setError('')
-    
+
     if (!config.dataset_id) {
       setError('Debe seleccionar un dataset')
       return
@@ -73,6 +75,13 @@ export default function Entrenamiento() {
       return
     }
     
+    // voz indicando inicio de entrenamiento con tipo legible
+    const tipoTexto = config.tipo_modelo === 'clasificacion'
+      ? 'Clasificación'
+      : config.tipo_modelo === 'regresion'
+        ? 'Regresión'
+        : 'Red neuronal'
+    speak(`Entrenando modelo del tipo ${tipoTexto}`)
     setEntrenando(true)
     
     try {
@@ -83,6 +92,7 @@ export default function Entrenamiento() {
       const errorMsg = error.response?.data?.error || 'Error al iniciar el entrenamiento'
       setError(errorMsg)
       setEntrenando(false)
+      speak('Error durante el entrenamiento')
     }
   }
 
@@ -104,7 +114,7 @@ export default function Entrenamiento() {
         <div className="card p-4 bg-rose-50 border-2 border-rose-200">
           <div className="flex items-center space-x-2 text-rose-700">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span className="font-semibold">{error}</span>
           </div>
@@ -117,7 +127,7 @@ export default function Entrenamiento() {
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0 2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-slate-900">Dataset</h2>

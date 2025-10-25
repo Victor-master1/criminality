@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
+import { useVoiceGuideContext } from '../contextos/VoiceGuideContext'
+import { TEXTOS_GUIA } from '../constantes/guiaVoz'
+import { useAuth } from '../hooks/useAuth'
 
 interface EstadisticasDashboard {
   total_datasets: number
@@ -10,9 +13,21 @@ interface EstadisticasDashboard {
 }
 
 export default function Dashboard() {
+  const { speak, hasSpokenWelcome, setHasSpokenWelcome } = useVoiceGuideContext()
+  const { usuario } = useAuth()
   const [estadisticas, setEstadisticas] = useState<EstadisticasDashboard | null>(null)
   const [experimentosRecientes, setExperimentosRecientes] = useState([])
   const [eliminando, setEliminando] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (usuario && !hasSpokenWelcome) {
+      const timer = setTimeout(() => {
+        speak(TEXTOS_GUIA.bienvenida)
+        setHasSpokenWelcome(true)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [usuario, hasSpokenWelcome, speak, setHasSpokenWelcome])
 
   useEffect(() => {
     cargarDatos()

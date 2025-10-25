@@ -20,16 +20,19 @@ export function useAuth() {
   }, [])
 
   const iniciarSesion = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     return { error }
   }
 
   const registrarse = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({ email, password })
     return { error }
   }
 
   const cerrarSesion = async () => {
+    // Primero desactivamos el usuario para evitar que se disparen efectos
+    setUsuario(null)
+    // Luego cerramos sesión
     await supabase.auth.signOut()
   }
 

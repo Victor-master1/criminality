@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { supabase } from '../lib/supabase'
 import type { Dataset } from '../tipos'
+import { useVoiceGuideContext } from '../contextos/VoiceGuideContext'
 
 export default function Datasets() {
   const [datasets, setDatasets] = useState<Dataset[]>([])
@@ -10,6 +11,7 @@ export default function Datasets() {
   const [eliminando, setEliminando] = useState<string | null>(null)
   const [modalEliminar, setModalEliminar] = useState<Dataset | null>(null)
   const navigate = useNavigate()
+  const { speak } = useVoiceGuideContext()
 
   useEffect(() => {
     cargarDatasets()
@@ -29,6 +31,9 @@ export default function Datasets() {
     if (!archivo) return
 
     setSubiendo(true)
+    // aviso de voz al iniciar la subida
+    speak('Subiendo dataset')
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Usuario no autenticado')
@@ -50,9 +55,12 @@ export default function Datasets() {
         usuario_id: user.id,
       })
 
-      cargarDatasets()
+      await cargarDatasets()
+      // aviso de voz al finalizar correctamente
+      speak('Dataset subido correctamente')
     } catch (error) {
       console.error('Error al subir archivo:', error)
+      speak('Error al subir el dataset')
     } finally {
       setSubiendo(false)
     }

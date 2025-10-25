@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import type { ColumnaStat, EstadisticasDatos, EstadisticasLimpieza, ResultadoLimpieza } from '../tipos'
+import { useVoiceGuideContext } from '../contextos/VoiceGuideContext'
 
 export default function Limpieza() {
   const { id } = useParams()
@@ -18,6 +19,11 @@ export default function Limpieza() {
   const [estadisticasLimpieza, setEstadisticasLimpieza] = useState<EstadisticasLimpieza | null>(null)
   const [mostrarResultados, setMostrarResultados] = useState(false)
   const [datasetLimpioId, setDatasetLimpioId] = useState<string | null>(null)
+  const [paginaActual, setPaginaActual] = useState(1)
+  const [totalPaginas, setTotalPaginas] = useState(1)
+  const [totalFilas, setTotalFilas] = useState(0)
+  const [filasXPagina] = useState(100)
+  const [cargandoPagina, setCargandoPagina] = useState(false)
   const [operaciones, setOperaciones] = useState({
     eliminar_nulos: true,
     normalizar: false,
@@ -26,6 +32,7 @@ export default function Limpieza() {
     eliminar_duplicados: true,
   })
 
+  const { speak } = useVoiceGuideContext()
   const COLORES = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 
   useEffect(() => {
@@ -33,6 +40,11 @@ export default function Limpieza() {
   }, [id])
 
   useEffect(() => {
+    if (!Array.isArray(vistaPrevia)) {
+      setVistaPreviaFiltrada([])
+      return
+    }
+
     if (filtroBusqueda.trim() === '') {
       setVistaPreviaFiltrada(vistaPrevia)
     } else {
@@ -47,35 +59,78 @@ export default function Limpieza() {
 
   const cargarDatos = async () => {
     try {
+      // ✅ CORREGIDO: Se usan backticks (`) para las URLs
       const [respCol, respPrev, respCorr, respDist, respEst] = await Promise.all([
         axios.get(`http://localhost:5000/api/datasets/${id}/columnas`),
-        axios.get(`http://localhost:5000/api/datasets/${id}/vista-previa`),
+        axios.get(`http://localhost:5000/api/datasets/${id}/vista-previa?page=1&per_page=${filasXPagina}`),
         axios.get(`http://localhost:5000/api/datasets/${id}/correlacion`),
         axios.get(`http://localhost:5000/api/datasets/${id}/distribucion-clases`),
         axios.get(`http://localhost:5000/api/datasets/${id}/estadisticas`)
       ])
 
-      setColumnas(respCol.data)
-      setVistaPrevia(respPrev.data)
-      setVistaPreviaFiltrada(respPrev.data)
-      setCorrelacion(respCorr.data)
-      setDistribucionClases(respDist.data)
-      setEstadisticasDatos(respEst.data)
+      setColumnas(respCol.data || [])
+
+      // ✅ CORREGIDO: Leer desde response.data.data y response.data.metadata
+      const previewData = Array.isArray(respPrev.data.data) ? respPrev.data.data : []
+      setVistaPrevia(previewData)
+      setVistaPreviaFiltrada(previewData)
+      setPaginaActual(respPrev.data.metadata.page)
+      setTotalPaginas(respPrev.data.metadata.total_paginas)
+      setTotalFilas(respPrev.data.metadata.total_filas)
+
+      setCorrelacion(respCorr.data || {})
+      setDistribucionClases(respDist.data || [])
+      setEstadisticasDatos(respEst.data || null)
     } catch (error) {
       console.error('Error al cargar datos:', error)
+      setVistaPrevia([])
+      setVistaPreviaFiltrada([])
+    }
+  }
+
+  const cargarPagina = async (numeroPagina: number) => {
+    if (numeroPagina < 1 || numeroPagina > totalPaginas) return
+    
+    setCargandoPagina(true)
+    try {
+      // ✅ CORREGIDO: Se usan backticks (`) y se añade per_page
+      const response = await axios.get(`http://localhost:5000/api/datasets/${id}/vista-previa?page=${numeroPagina}&per_page=${filasXPagina}`)
+      
+      // ✅ CORREGIDO: Leer desde response.data.data y response.data.metadata
+      const previewData = Array.isArray(response.data.data) ? response.data.data : []
+      setVistaPrevia(previewData)
+      setVistaPreviaFiltrada(previewData)
+      setPaginaActual(response.data.metadata.page)
+      setTotalPaginas(response.data.metadata.total_paginas)
+      setTotalFilas(response.data.metadata.total_filas)
+      
+      const tableContainer = document.getElementById('vista-previa-table')
+      if (tableContainer) {
+        tableContainer.scrollTo(0, 0)
+      }
+    } catch (error) {
+      console.error('Error al cargar página:', error)
+    } finally {
+      setCargandoPagina(false)
     }
   }
 
   const aplicarLimpieza = async () => {
+    // aviso de voz al iniciar la limpieza
+    speak('Aplicando limpieza del dataset')
     setProcesando(true)
     setMostrarResultados(false)
     try {
+      // ✅ CORREGIDO: Se usan backticks (`)
       const { data } = await axios.post<ResultadoLimpieza>(`http://localhost:5000/api/datasets/${id}/limpiar`, operaciones)
       setEstadisticasLimpieza(data.estadisticas)
       setDatasetLimpioId(data.dataset_limpio_id)
       setMostrarResultados(true)
+      // aviso de voz al finalizar
+      speak('Limpieza completada')
     } catch (error) {
       console.error('Error al limpiar:', error)
+      speak('Error al aplicar la limpieza')
       alert('Error al aplicar la limpieza')
     } finally {
       setProcesando(false)
@@ -85,12 +140,14 @@ export default function Limpieza() {
   const descargarCSV = async () => {
     if (!datasetLimpioId) return
     try {
+      // ✅ CORREGIDO: Se usan backticks (`)
       const response = await axios.get(`http://localhost:5000/api/datasets/${datasetLimpioId}/descargar`, {
         responseType: 'blob'
       })
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
+      // ✅ CORREGIDO: Se usan backticks (`) para el nombre del archivo
       link.setAttribute('download', `dataset_limpio_${Date.now()}.csv`)
       document.body.appendChild(link)
       link.click()
@@ -102,8 +159,8 @@ export default function Limpieza() {
 
   const verDatasetLimpio = () => {
     if (datasetLimpioId) {
+      // ✅ CORREGIDO: Se usan backticks (`) y se elimina window.location.reload()
       navigate(`/limpieza/${datasetLimpioId}`)
-      window.location.reload()
     }
   }
 
@@ -111,7 +168,7 @@ export default function Limpieza() {
     return columnas.map(col => ({
       nombre: col.nombre.substring(0, 10),
       nulos: col.valores_nulos,
-      completos: vistaPrevia.length - col.valores_nulos
+      completos: totalFilas - col.valores_nulos
     })).slice(0, 8)
   }
 
@@ -144,6 +201,7 @@ export default function Limpieza() {
             </div>
             <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_filas.toLocaleString()}</p>
           </div>
+
           <div className="card p-5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-600 uppercase">Valores Nulos</span>
@@ -154,6 +212,7 @@ export default function Limpieza() {
             <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_nulos.toLocaleString()}</p>
             <p className="text-xs text-slate-500 mt-1">{estadisticasDatos.porcentaje_nulos.toFixed(2)}% del total</p>
           </div>
+
           <div className="card p-5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-600 uppercase">Duplicados</span>
@@ -163,6 +222,7 @@ export default function Limpieza() {
             </div>
             <p className="text-3xl font-bold text-slate-900">{estadisticasDatos.total_duplicados.toLocaleString()}</p>
           </div>
+
           <div className="card p-5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-600 uppercase">Columnas</span>
@@ -195,7 +255,7 @@ export default function Limpieza() {
               </svg>
             </button>
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white rounded-xl p-4 border-2 border-emerald-200">
               <p className="text-sm text-slate-600 font-semibold mb-1">Filas Eliminadas</p>
@@ -246,6 +306,7 @@ export default function Limpieza() {
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {/* ✅ CORREGIDO: SVG Path del icono de ojo */}
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
@@ -266,36 +327,114 @@ export default function Limpieza() {
               </div>
             </div>
 
-            {filtroBusqueda && (
-              <div className="mb-4 px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-xl text-sm text-blue-700 font-semibold">
-                Mostrando {vistaPreviaFiltrada.length} de {vistaPrevia.length} filas
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                {filtroBusqueda && (
+                  <div className="px-4 py-2 bg-blue-50 border-2 border-blue-200 rounded-xl text-sm text-blue-700 font-semibold inline-block">
+                    Mostrando {vistaPreviaFiltrada.length} de {vistaPrevia.length} filas
+                  </div>
+                )}
+                <div className="mt-2 px-4 py-2 bg-slate-100 border-2 border-slate-200 rounded-xl text-sm text-slate-700 font-semibold inline-block ml-2">
+                  Página {paginaActual} de {totalPaginas} ({totalFilas} filas totales)
+                </div>
+              </div>
+            </div>
+
+            {Array.isArray(vistaPreviaFiltrada) && vistaPreviaFiltrada.length > 0 ? (
+              <>
+                <div id="vista-previa-table" className="overflow-auto rounded-xl border-2 border-slate-100 max-h-96">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        {vistaPrevia[0] && Object.keys(vistaPrevia[0]).map((col) => (
+                          <th key={col} className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {vistaPreviaFiltrada.map((fila, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          {Object.values(fila).map((valor: any, colIdx) => (
+                            <td 
+                              key={colIdx} 
+                              className={`px-4 py-3 whitespace-nowrap ${
+                                String(valor) === '[NULL]' 
+                                  ? 'text-rose-600 font-semibold bg-rose-50' 
+                                  : 'text-slate-600'
+                              }`}
+                            >
+                              {String(valor)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between mt-6 p-4 bg-slate-50 rounded-xl border-2 border-slate-100">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => cargarPagina(1)}
+                      disabled={paginaActual === 1 || cargandoPagina}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      Primera
+                    </button>
+                    <button
+                      onClick={() => cargarPagina(paginaActual - 1)}
+                      disabled={paginaActual === 1 || cargandoPagina}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      Anterior
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max={totalPaginas}
+                      value={paginaActual}
+                      onChange={(e) => {
+                        const num = parseInt(e.target.value)
+                        if (num >= 1 && num <= totalPaginas) {
+                          cargarPagina(num)
+                        }
+                      }}
+                      className="w-20 px-2 py-2 border-2 border-slate-300 rounded-lg text-center font-semibold"
+                    />
+                    <span className="text-slate-700 font-semibold">de {totalPaginas}</span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => cargarPagina(paginaActual + 1)}
+                      disabled={paginaActual === totalPaginas || cargandoPagina}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      Siguiente
+                    </button>
+                    <button
+                      onClick={() => cargarPagina(totalPaginas)}
+                      disabled={paginaActual === totalPaginas || cargandoPagina}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      Última
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 bg-slate-50 rounded-xl border-2 border-slate-100">
+                <svg className="w-12 h-12 text-slate-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-slate-600 font-medium">No hay datos para mostrar</p>
               </div>
             )}
-
-            <div className="overflow-auto rounded-xl border-2 border-slate-100 max-h-96">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 sticky top-0">
-                  <tr>
-                    {vistaPrevia[0] && Object.keys(vistaPrevia[0]).map((col) => (
-                      <th key={col} className="px-4 py-3 text-left font-semibold text-slate-700 whitespace-nowrap">
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {vistaPreviaFiltrada.map((fila, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      {Object.values(fila).map((valor: any, colIdx) => (
-                        <td key={colIdx} className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                          {String(valor)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -389,7 +528,7 @@ export default function Limpieza() {
               <h2 className="text-2xl font-bold text-slate-900">Estadísticas Detalladas</h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-96 overflow-y-auto">
               {columnas.map((col) => (
                 <div key={col.nombre} className="border-2 border-slate-100 rounded-xl p-5 hover:border-primary-200 transition-colors">
                   <div className="flex justify-between items-start mb-4">
@@ -406,11 +545,13 @@ export default function Limpieza() {
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                       <span className="text-slate-600">Nulos:</span>
-                      <span className="font-semibold text-slate-900">{col.valores_nulos}</span>
+                      <span className={`font-semibold ${col.valores_nulos > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                        {col.valores_nulos}
+                      </span>
                     </div>
 
                     {col.promedio !== undefined && (
