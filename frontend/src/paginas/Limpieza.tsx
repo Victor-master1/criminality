@@ -12,7 +12,8 @@ export default function Limpieza() {
   const [vistaPrevia, setVistaPrevia] = useState<any[]>([])
   const [vistaPreviaFiltrada, setVistaPreviaFiltrada] = useState<any[]>([])
   const [procesando, setProcesando] = useState(false)
-  const [correlacion, setCorrelacion] = useState<any>(null)
+  // CORRECCIÓN AQUÍ: Renombrada a '_correlacion' porque no se estaba usando
+  const [_correlacion, setCorrelacion] = useState<any>(null)
   const [distribucionClases, setDistribucionClases] = useState<any[]>([])
   const [estadisticasDatos, setEstadisticasDatos] = useState<EstadisticasDatos | null>(null)
   const [filtroBusqueda, setFiltroBusqueda] = useState('')
