@@ -480,7 +480,7 @@ export default function Limpieza() {
                       outerRadius={80}
                       label
                     >
-                      {distribucionClases.map((entry, index) => (
+                      {distribucionClases.map((_entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORES[index % COLORES.length]} />
                       ))}
                     </Pie>
